@@ -30,6 +30,10 @@
     <!-- HTML5-QRCode for Scanning Camera & Files -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
+    <!-- Cropper.js for Image Cropping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -107,6 +111,23 @@
             <button id="btn-understand" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200">
                 Mengerti
             </button>
+        </div>
+    </div>
+
+    <!-- Crop Image Modal -->
+    <div id="crop-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl w-11/12 max-w-2xl flex flex-col overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-gray-800 dark:text-white"><i class="fa-solid fa-crop-simple mr-2"></i>Sesuaikan Area Scan</h3>
+                <button id="btn-close-crop" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="bg-gray-900 w-full h-[50vh] md:h-[60vh] relative flex items-center justify-center">
+                <img id="crop-image" class="max-w-full max-h-full block" src="" alt="To crop">
+            </div>
+            <div class="p-4 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                <button id="btn-cancel-crop" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium text-sm transition-colors">Batal</button>
+                <button id="btn-apply-crop" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-colors flex items-center"><i class="fa-solid fa-check mr-2"></i> Terapkan & Scan</button>
+            </div>
         </div>
     </div>
 
@@ -316,6 +337,19 @@
                         <span class="text-gray-400 dark:text-gray-500 text-xs">Mendukung format PNG, JPG, JPEG</span>
                         <input type='file' id="scan-file-input" class="hidden" accept="image/*" />
                     </label>
+                    
+                    <!-- Upload Actions (Hidden until file is selected) -->
+                    <div id="upload-actions" class="hidden w-full mt-4 flex flex-col">
+                        <p id="upload-filename" class="text-sm text-gray-600 dark:text-gray-400 text-center truncate mb-3 italic">File terpilih: -</p>
+                        <div class="flex gap-2">
+                            <button id="btn-edit-image" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center">
+                                <i class="fa-solid fa-crop-simple mr-2"></i> Edit Area
+                            </button>
+                            <button id="btn-scan-uploaded" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center">
+                                <i class="fa-solid fa-magnifying-glass mr-2"></i> Scan Langsung
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Scanning Error/Loading Message -->
@@ -952,28 +986,52 @@
 
 
         // --- File Upload Scanning ---
-        scanFileInput.addEventListener('change', async (e) => {
+        let currentUploadedFile = null;
+        let cropperInstance = null;
+        const uploadActions = document.getElementById('upload-actions');
+        const uploadFilename = document.getElementById('upload-filename');
+        const btnEditImage = document.getElementById('btn-edit-image');
+        const btnScanUploaded = document.getElementById('btn-scan-uploaded');
+        
+        const cropModal = document.getElementById('crop-modal');
+        const cropImage = document.getElementById('crop-image');
+        const btnCloseCrop = document.getElementById('btn-close-crop');
+        const btnCancelCrop = document.getElementById('btn-cancel-crop');
+        const btnApplyCrop = document.getElementById('btn-apply-crop');
+
+        // Saat file dipilih, jangan langsung scan, tapi tampilkan opsi
+        scanFileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
+            currentUploadedFile = file;
             scanFeedback.classList.add('hidden');
             
-            // Try Modern Web BarcodeDetector API for multi-QR support on uploads
+            // Tampilkan nama file dan tombol aksi (tidak ada pratinjau otomatis)
+            uploadFilename.textContent = `File terpilih: ${file.name}`;
+            uploadActions.classList.remove('hidden');
+        });
+
+        // Fungsi utama untuk memproses scan dari file/blob gambar
+        async function processImageForScan(fileOrBlob) {
+            scanFeedback.classList.add('hidden');
+            uploadActions.classList.add('hidden'); // Sembunyikan menu aksi setelah mulai scan
+            scanFileInput.value = ''; // Reset input agar bisa upload file yang sama lagi
+            
+            // Coba pakai BarcodeDetector API (modern web)
             if ('BarcodeDetector' in window) {
                 try {
                     const formats = scannerState.type === 'qr' ? ['qr_code'] : ['code_128', 'ean_13', 'ean_8', 'upc_a'];
                     const detector = new BarcodeDetector({ formats: formats });
-                    const bitmap = await createImageBitmap(file);
+                    const bitmap = await createImageBitmap(fileOrBlob);
                     const barcodes = await detector.detect(bitmap);
                     
                     if (barcodes.length > 0) {
                         if (scannerState.type === 'barcode') {
-                            addScanResult(barcodes[0].rawValue); // Only 1 for barcode
+                            addScanResult(barcodes[0].rawValue);
                         } else {
-                            barcodes.forEach(bc => addScanResult(bc.rawValue)); // Multiple for QR
+                            barcodes.forEach(bc => addScanResult(bc.rawValue));
                         }
-                        // Reset input so same file can be uploaded again if needed
-                        scanFileInput.value = ''; 
                         return;
                     }
                 } catch (err) {
@@ -981,18 +1039,89 @@
                 }
             }
 
-            // Fallback to html5-qrcode file scan (Usually single result)
+            // Fallback ke html5-qrcode
             initScannerEngine();
             try {
-                const resultText = await scannerState.html5QrCode.scanFile(file, true);
+                // Pastikan tipe datanya adalah File object agar kompatibel dengan Html5Qrcode
+                let fileToScan = fileOrBlob;
+                if (!(fileOrBlob instanceof File)) {
+                    fileToScan = new File([fileOrBlob], "scan-image.jpg", { type: "image/jpeg" });
+                }
+                const resultText = await scannerState.html5QrCode.scanFile(fileToScan, true);
                 addScanResult(resultText);
             } catch (err) {
                 console.error("File scan failed:", err);
-                scanFeedback.textContent = `Tidak ditemukan ${scannerState.type.toUpperCase()} pada gambar.`;
+                scanFeedback.textContent = `Tidak ditemukan ${scannerState.type.toUpperCase()} pada gambar. Coba edit/potong area gambar agar lebih jelas.`;
                 scanFeedback.classList.remove('hidden');
             }
+        }
+
+        // Tombol Scan Langsung (Tanpa Edit)
+        btnScanUploaded.addEventListener('click', () => {
+            if (currentUploadedFile) {
+                processImageForScan(currentUploadedFile);
+            }
+        });
+
+        // Tombol Edit/Potong Area
+        btnEditImage.addEventListener('click', () => {
+            if (!currentUploadedFile) return;
             
-            scanFileInput.value = ''; // Reset
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                cropImage.src = e.target.result;
+                
+                // Tampilkan Modal Edit
+                cropModal.classList.remove('hidden');
+                setTimeout(() => {
+                    cropModal.classList.remove('opacity-0');
+                    cropModal.firstElementChild.classList.remove('scale-95');
+                    cropModal.firstElementChild.classList.add('scale-100');
+                }, 10);
+
+                // Inisialisasi Cropper.js
+                if (cropperInstance) cropperInstance.destroy();
+                cropperInstance = new Cropper(cropImage, {
+                    viewMode: 1,
+                    autoCropArea: 0.8,
+                    background: false,
+                    zoomable: true,
+                    responsive: true,
+                });
+            };
+            reader.readAsDataURL(currentUploadedFile);
+        });
+
+        // Fungsi Tutup Modal Crop
+        function closeCropModal() {
+            cropModal.classList.add('opacity-0');
+            cropModal.firstElementChild.classList.remove('scale-100');
+            cropModal.firstElementChild.classList.add('scale-95');
+            setTimeout(() => {
+                cropModal.classList.add('hidden');
+                if (cropperInstance) {
+                    cropperInstance.destroy();
+                    cropperInstance = null;
+                }
+            }, 300);
+        }
+
+        btnCloseCrop.addEventListener('click', closeCropModal);
+        btnCancelCrop.addEventListener('click', closeCropModal);
+
+        // Terapkan hasil potongan gambar dan langsung scan
+        btnApplyCrop.addEventListener('click', () => {
+            if (!cropperInstance) return;
+            
+            cropperInstance.getCroppedCanvas({
+                maxWidth: 2048, // Batasi resolusi max agar proses scan tidak berat/lambat
+                maxHeight: 2048
+            }).toBlob((blob) => {
+                if (blob) {
+                    closeCropModal();
+                    processImageForScan(blob);
+                }
+            }, 'image/jpeg', 0.9);
         });
 
         // Initialize state
