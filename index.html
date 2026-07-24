@@ -99,6 +99,7 @@
                 <p>Banyak platform pembuat QR Code menggunakan metode tautan dinamis yang menyisipkan iklan. Hal ini memperlambat akses, mengganggu kenyamanan, dan tidak efektif.</p>
                 <p>Di <strong>FadCode Generator</strong>, masalah tersebut teratasi! Kami mengubah teks atau tautan Anda menjadi QR Code maupun Barcode secara <strong>langsung dan statis</strong>. Tanpa perantara, tanpa pihak ketiga, dan bebas dari iklan bawaan.</p>
                 <p>Pindaian Anda akan seketika menuju ke tujuan utamanya dengan cepat dan aman. Selain itu, Anda juga dapat menggunakan generator ini untuk menyimpan pesan tersembunyi dengan mudah.</p>
+                <p class="font-bold text-green-600 dark:text-green-400 text-base pt-2 text-center">Dan yang paling penting, alat ini 100% GRATIS!!!</p>
             </div>
             
             <p class="text-right text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-6 italic">By Fadkun10</p>
@@ -177,6 +178,17 @@
                     </div>
                 </div>
 
+                <!-- Size Selection -->
+                <div class="mb-6" id="size-selection-container">
+                    <label for="output-size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ukuran Resolusi</label>
+                    <select id="output-size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-shadow cursor-pointer">
+                        <option value="small">Kecil (Standar)</option>
+                        <option value="medium" selected>Sedang (Kualitas Tinggi)</option>
+                        <option value="large">Besar (Untuk Cetak)</option>
+                    </select>
+                    <p id="size-warning-logo" class="text-xs text-indigo-600 dark:text-indigo-400 mt-2 hidden"><i class="fa-solid fa-circle-info mr-1"></i> Ukuran otomatis dikunci ke "Sedang" untuk menstabilkan kualitas gambar tengah.</p>
+                </div>
+
                 <!-- QR Specific Settings -->
                 <div id="qr-settings" class="mb-6 p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm transition-colors duration-300">
                     <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3"><i class="fa-solid fa-image mr-1"></i> Pengaturan QR</h3>
@@ -233,6 +245,10 @@
                 <button id="btn-download" disabled class="w-full md:w-auto bg-green-500 hover:bg-green-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg shadow transition duration-200 flex items-center justify-center">
                     <i class="fa-solid fa-download mr-2"></i> Download PNG
                 </button>
+                
+                <div id="file-size-display" class="mt-4 text-sm font-medium text-gray-600 dark:text-gray-400 hidden flex justify-center items-center w-full">
+                    <i class="fa-solid fa-file-image mr-2"></i> Estimasi Ukuran File: <span id="file-size-value" class="ml-1 text-indigo-600 dark:text-indigo-400 font-bold">- KB</span>
+                </div>
             </div>
         </div>
 
@@ -362,13 +378,10 @@
             }, 300); // Matches transition duration
         }
 
-        // Check if user has seen the modal before
-        if (!localStorage.getItem('hasSeenFadCodeIntro')) {
-            openModal();
-        }
+        // Tampilkan modal setiap kali halaman dimuat (tanpa mengecek localStorage)
+        openModal();
 
         btnUnderstand.addEventListener('click', () => {
-            localStorage.setItem('hasSeenFadCodeIntro', 'true');
             closeModal();
         });
 
@@ -462,6 +475,10 @@
         const logoUploadContainer = document.getElementById('logo-upload-container');
         const logoInput = document.getElementById('logo-input');
         const showTextCheckbox = document.getElementById('show-text');
+        const outputSize = document.getElementById('output-size');
+        const sizeWarningLogo = document.getElementById('size-warning-logo');
+        const fileSizeDisplay = document.getElementById('file-size-display');
+        const fileSizeValue = document.getElementById('file-size-value');
         const btnGenerate = document.getElementById('btn-generate');
         const btnDownload = document.getElementById('btn-download');
         const errorMessage = document.getElementById('error-message');
@@ -495,8 +512,15 @@
         useLogoCheckbox.addEventListener('change', (e) => {
             if (e.target.checked) {
                 logoUploadContainer.classList.remove('hidden');
+                outputSize.disabled = true;
+                outputSize.value = 'medium';
+                outputSize.classList.add('opacity-60', 'cursor-not-allowed');
+                sizeWarningLogo.classList.remove('hidden');
             } else {
                 logoUploadContainer.classList.add('hidden');
+                outputSize.disabled = false;
+                outputSize.classList.remove('opacity-60', 'cursor-not-allowed');
+                sizeWarningLogo.classList.add('hidden');
                 uploadedLogoUrl = null;
                 logoInput.value = '';
             }
@@ -521,19 +545,59 @@
             }
         });
 
+        function calculateAndDisplayFileSize() {
+            let dataUrl = null;
+            if (currentMode === 'qr') {
+                const canvas = qrcodeOutput.querySelector('canvas');
+                if (canvas) dataUrl = canvas.toDataURL('image/png');
+            } else {
+                if (barcodeOutput.src) dataUrl = barcodeOutput.src;
+            }
+
+            if (dataUrl) {
+                // Mengambil bagian string base64 untuk dihitung ukurannya
+                const base64str = dataUrl.split(',')[1];
+                if (base64str) {
+                    const decodedStr = atob(base64str);
+                    const sizeInBytes = decodedStr.length;
+                    let sizeText = '';
+                    if (sizeInBytes >= 1024 * 1024) {
+                        sizeText = (sizeInBytes / (1024 * 1024)).toFixed(2) + ' MB';
+                    } else {
+                        sizeText = (sizeInBytes / 1024).toFixed(2) + ' KB';
+                    }
+                    fileSizeValue.textContent = sizeText;
+                    fileSizeDisplay.classList.remove('hidden');
+                }
+            }
+        }
+
         function showOutput() {
             emptyState.classList.add('hidden');
             outputContainer.classList.remove('hidden');
             btnDownload.disabled = false;
+            
+            // Menunggu sebentar hingga canvas / image selesai di render sebelum menghitung ukuran
+            setTimeout(() => {
+                calculateAndDisplayFileSize();
+            }, 500);
         }
 
         function generateQR(text, darkColor, lightColor) {
             qrcodeOutput.innerHTML = '';
             qrcodeOutput.classList.remove('hidden');
             barcodeOutput.classList.add('hidden');
+            fileSizeDisplay.classList.add('hidden');
 
-            // Tingkatkan ukuran dasar QR Code menjadi 512 agar lebih tajam dan jernih
-            const qrSize = 512;
+            // Setel ukuran dasar berdasarkan inputan pengguna
+            let qrSize = 1024; // Medium (Default)
+            if (!useLogoCheckbox.checked) {
+                const sizeVal = outputSize.value;
+                if (sizeVal === 'small') qrSize = 512;
+                else if (sizeVal === 'medium') qrSize = 1024;
+                else if (sizeVal === 'large') qrSize = 2048; // Resolusi Tinggi
+            }
+
             const options = {
                 text: text, width: qrSize, height: qrSize,
                 colorDark: darkColor, colorLight: lightColor,
@@ -578,11 +642,19 @@
         function generateBarcode(text, darkColor, lightColor) {
             qrcodeOutput.classList.add('hidden');
             barcodeOutput.classList.remove('hidden');
+            fileSizeDisplay.classList.add('hidden');
+            
+            // Setel ukuran barcode berdasarkan inputan
+            let bcWidth = 4, bcHeight = 200; // Medium (Default)
+            const sizeVal = outputSize.value;
+            if (sizeVal === 'small') { bcWidth = 2; bcHeight = 100; }
+            else if (sizeVal === 'medium') { bcWidth = 4; bcHeight = 200; }
+            else if (sizeVal === 'large') { bcWidth = 8; bcHeight = 400; }
             
             try {
                 JsBarcode("#barcode-output", text, {
                     format: "CODE128", lineColor: darkColor, background: lightColor,
-                    displayValue: showTextCheckbox.checked, margin: 15, width: 2, height: 100
+                    displayValue: showTextCheckbox.checked, margin: 15, width: bcWidth, height: bcHeight
                 });
                 showOutput();
             } catch (err) {
