@@ -194,7 +194,7 @@
                                 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-800/40
                                 cursor-pointer
                             "/>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Gunakan gambar rasio 1:1 (kotak) untuk hasil terbaik.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Mendukung gambar transparan (PNG) & berbagai ukuran rasio.</p>
                         </div>
                     </div>
                 </div>
@@ -448,6 +448,8 @@
          */
         let currentMode = 'qr';
         let uploadedLogoUrl = null;
+        let uploadedLogoWidth = 0;
+        let uploadedLogoHeight = 0;
 
         const btnQrMode = document.getElementById('btn-qr-mode');
         const btnBarcodeMode = document.getElementById('btn-barcode-mode');
@@ -504,7 +506,17 @@
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function(event) { uploadedLogoUrl = event.target.result; };
+                reader.onload = function(event) { 
+                    uploadedLogoUrl = event.target.result; 
+                    
+                    // Dapatkan dimensi asli gambar agar rasionya tetap terjaga di QR
+                    const img = new Image();
+                    img.onload = function() {
+                        uploadedLogoWidth = img.width;
+                        uploadedLogoHeight = img.height;
+                    };
+                    img.src = uploadedLogoUrl;
+                };
                 reader.readAsDataURL(file);
             }
         });
@@ -520,18 +532,38 @@
             qrcodeOutput.classList.remove('hidden');
             barcodeOutput.classList.add('hidden');
 
+            // Tingkatkan ukuran dasar QR Code menjadi 512 agar lebih tajam dan jernih
+            const qrSize = 512;
             const options = {
-                text: text, width: 256, height: 256,
+                text: text, width: qrSize, height: qrSize,
                 colorDark: darkColor, colorLight: lightColor,
                 correctLevel: QRCode.CorrectLevel.H,
-                quietZone: 15, quietZoneColor: lightColor
+                quietZone: 20, quietZoneColor: lightColor
             };
 
             if (useLogoCheckbox.checked && uploadedLogoUrl) {
                 options.logo = uploadedLogoUrl;
-                options.logoWidth = 60; options.logoHeight = 60;
-                options.logoBackgroundColor = lightColor;
-                options.logoBackgroundTransparent = false;
+                
+                // Hitung ukuran logo maksimal sekitar 25% dari ukuran QR agar QR tetap bisa di-scan
+                const maxLogoSize = qrSize * 0.25; 
+                let finalLogoWidth = maxLogoSize;
+                let finalLogoHeight = maxLogoSize;
+                
+                // Sesuaikan rasio agar tidak gepeng dan tidak ada blok putih tambahan
+                if (uploadedLogoWidth && uploadedLogoHeight) {
+                    const ratio = uploadedLogoWidth / uploadedLogoHeight;
+                    if (ratio > 1) { // Landscape
+                        finalLogoWidth = maxLogoSize;
+                        finalLogoHeight = maxLogoSize / ratio;
+                    } else { // Portrait
+                        finalLogoHeight = maxLogoSize;
+                        finalLogoWidth = maxLogoSize * ratio;
+                    }
+                }
+
+                options.logoWidth = Math.round(finalLogoWidth); 
+                options.logoHeight = Math.round(finalLogoHeight);
+                options.logoBackgroundTransparent = true; // Pertahankan transparansi PNG (tanpa blok latar)
             }
 
             try {
