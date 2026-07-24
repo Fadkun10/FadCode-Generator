@@ -1,5 +1,3 @@
-readme_content = """# FadCode Generator 🚀
-
 **FadCode Generator** is a powerful, lightweight, and 100% free web application designed to generate and scan static QR Codes and Barcodes. Say goodbye to intermediary links and annoying ads! With FadCode, your generated codes point directly to your destination securely and instantly.
 
 ---
