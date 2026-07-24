@@ -180,8 +180,11 @@
 
                 <!-- Content Input -->
                 <div class="mb-6">
-                    <label for="input-text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Teks atau URL</label>
-                    <textarea id="input-text" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-shadow" placeholder="Masukkan teks di sini...">https://example.com</textarea>
+                    <div class="flex justify-between items-end mb-2">
+                        <label for="input-text" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Teks atau URL</label>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-medium"><span id="char-count">19</span>/2000 Max</span>
+                    </div>
+                    <textarea id="input-text" rows="3" maxlength="2000" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-shadow" placeholder="Masukkan teks di sini...">https://example.com</textarea>
                 </div>
 
                 <div class="mb-6 grid grid-cols-2 gap-4">
@@ -520,6 +523,7 @@
         const outputContainer = document.getElementById('output-container');
         const qrcodeOutput = document.getElementById('qrcode-output');
         const barcodeOutput = document.getElementById('barcode-output');
+        const charCount = document.getElementById('char-count');
 
         function setGenMode(mode) {
             currentMode = mode;
@@ -542,6 +546,15 @@
 
         btnQrMode.addEventListener('click', () => setGenMode('qr'));
         btnBarcodeMode.addEventListener('click', () => setGenMode('barcode'));
+
+        // Update jumlah karakter saat pengguna mengetik
+        function updateCharCount() {
+            charCount.textContent = inputText.value.length;
+        }
+        inputText.addEventListener('input', updateCharCount);
+        
+        // Panggil saat pertama kali agar sinkron dengan teks bawaan
+        updateCharCount();
 
         useLogoCheckbox.addEventListener('change', (e) => {
             if (e.target.checked) {
